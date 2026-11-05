@@ -26,3 +26,48 @@ jobs:
 
       - name: Build Docker image
         run: docker build -t gameflix-backend .
+
+      # Generate CycloneDX SBOM using Syft
+      - name: Generate SBOM with Syft
+        uses: anchore/sbom-action@v0
+        with:
+          image: gameflix-backend:latest
+          format: cyclonedx-json
+          output-file: gameflix-sbom.cdx.json
+          upload-artifact: false
+
+      # Scan HIGH and CRITICAL vulnerabilities
+      - name: Scan with Trivy
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: gameflix-backend:latest
+          format: json
+          output: trivy-report.json
+          severity: HIGH,CRITICAL
+          exit-code: '0'
+
+      # Fail pipeline if CRITICAL vulnerabilities exist
+      - name: Check Critical Vulnerabilities
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: gameflix-backend:latest
+          format: table
+          severity: CRITICAL
+          exit-code: '1'
+          skip-setup-trivy: true
+
+      # Save SBOM report
+      - name: Upload SBOM Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-report
+          path: gameflix-sbom.cdx.json
+
+      # Save Trivy report
+      - name: Upload Trivy Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-report
+          path: trivy-report.json
